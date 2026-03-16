@@ -398,7 +398,7 @@
         <section class="waitlist-section" id="waitlist">
             <h2>Get Early Access — Lock In Founding Member Pricing</h2>
             <p>Join now and lock in <strong>$29/month</strong> forever. After launch, pricing goes to $49/month.</p>
-            <form class="waitlist-form native-signup-form">
+            <form class="waitlist-form native-signup-form" onsubmit="return atlasSignupSubmit(this)">
                 <input type="hidden" name="experiment" value="smb-workflow">
                 <input type="hidden" name="source" value="smb-workflow">
                 <input type="hidden" name="pricing" value="$29-launch-$49-normal">
@@ -420,11 +420,12 @@
     </footer>
 <script>
 (function(){
-  function enhance(form){
-    const msg = form.parentElement.querySelector('.form-message') || form.nextElementSibling;
-    const button = form.querySelector('button[type="submit"]');
-    const original = button ? button.textContent : 'Join Waitlist';
-    const iframeName = 'signup_target_' + Math.random().toString(36).slice(2);
+  function randomId(){ return 'signup_target_' + Math.random().toString(36).slice(2); }
+  window.atlasSignupMap = window.atlasSignupMap || {};
+  window.atlasSignupInit = function(form){
+    if (!form || form.dataset.signupReady === '1') return;
+    form.dataset.signupReady = '1';
+    const iframeName = randomId();
     const iframe = document.createElement('iframe');
     iframe.name = iframeName;
     iframe.style.display = 'none';
@@ -432,24 +433,39 @@
     form.target = iframeName;
     form.action = 'https://atlas-signups-worker.business-risc.workers.dev/api/signup';
     form.method = 'POST';
-
-    form.addEventListener('submit', function(){
-      if (button) { button.disabled = true; button.textContent = 'Submitting...'; }
-      if (msg) { msg.textContent = 'Submitting...'; msg.style.color = '#94a3b8'; }
-    });
-
-    window.addEventListener('message', function(e){
-      if (!e.data || (e.data.type !== 'atlas-signup-success' && e.data.type !== 'atlas-signup-error')) return;
+    const pageField = form.querySelector('input[name="page_url"]');
+    if (pageField) pageField.value = window.location.href;
+    window.atlasSignupMap[iframeName] = form;
+  };
+  window.atlasSignupSubmit = function(form){
+    window.atlasSignupInit(form);
+    const msg = form.parentElement.querySelector('.form-message') || form.nextElementSibling;
+    const button = form.querySelector('button[type="submit"]');
+    if (button) { button.disabled = true; button.textContent = 'Submitting...'; }
+    if (msg) { msg.textContent = 'Submitting...'; msg.style.color = '#94a3b8'; }
+    return true;
+  };
+  window.addEventListener('message', function(e){
+    if (!e.data || (e.data.type !== 'atlas-signup-success' && e.data.type !== 'atlas-signup-error')) return;
+    const frames = Object.keys(window.atlasSignupMap || {});
+    // update all active signup forms to keep behavior simple/reliable
+    frames.forEach(function(name){
+      const form = window.atlasSignupMap[name];
+      if (!form) return;
+      const msg = form.parentElement.querySelector('.form-message') || form.nextElementSibling;
+      const button = form.querySelector('button[type="submit"]');
       if (e.data.type === 'atlas-signup-success') {
         form.reset();
+        const pageField = form.querySelector('input[name="page_url"]');
+        if (pageField) pageField.value = window.location.href;
         if (msg) { msg.textContent = "Thanks — you're on the waitlist."; msg.style.color = '#86efac'; }
       } else {
         if (msg) { msg.textContent = 'Something went wrong. Please try again.'; msg.style.color = '#fca5a5'; }
       }
-      if (button) { button.disabled = false; button.textContent = original; }
+      if (button) { button.disabled = false; button.textContent = 'Join Waitlist'; }
     });
-  }
-  document.querySelectorAll('.native-signup-form').forEach(enhance);
+  });
+  document.querySelectorAll('.native-signup-form').forEach(function(form){ window.atlasSignupInit(form); });
 })();
 </script>
 </body>
