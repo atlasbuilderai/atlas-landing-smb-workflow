@@ -398,7 +398,11 @@
         <section class="waitlist-section" id="waitlist">
             <h2>Get Early Access — Lock In Founding Member Pricing</h2>
             <p>Join now and lock in <strong>$29/month</strong> forever. After launch, pricing goes to $49/month.</p>
-            <iframe src="https://tally.so/embed/7RZNGa?hideTitle=1&transparentBackground=1" loading="lazy" width="100%" height="240" frameborder="0" marginheight="0" marginwidth="0" title="SMB Workflow Waitlist" style="display:block;width:100%;max-width:100%;border:none;border-radius:12px;background:transparent;"></iframe>
+            <form class="waitlist-form native-signup-form" data-tally-form-id="7RZNGa" data-tally-group-id="ae0adba3-d29f-4260-9b93-b0d536918153">
+                <input type="email" name="email" placeholder="Enter your email" required>
+                <button type="submit">Join Waitlist</button>
+            </form>
+            <p class="form-message" aria-live="polite"></p>
             <p class="privacy">We respect your privacy. Unsubscribe anytime.</p>
             
         </section>
@@ -409,5 +413,65 @@
             <p>© 2026. Built for small businesses who want to work smarter.</p>
         </div>
     </footer>
+<script>
+(function(){
+  function uuid(){
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+      var r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
+      return v.toString(16);
+    });
+  }
+  async function submitNativeForm(form){
+    const emailInput = form.querySelector('input[name="email"]');
+    const button = form.querySelector('button[type="submit"]');
+    const msg = form.parentElement.querySelector('.form-message') || form.nextElementSibling;
+    const email = (emailInput.value || '').trim();
+    if (!email) return;
+    button.disabled = true;
+    const original = button.textContent;
+    button.textContent = 'Submitting...';
+    if (msg) { msg.textContent = ''; msg.style.color = '#94a3b8'; }
+    try {
+      const formId = form.dataset.tallyFormId;
+      const groupId = form.dataset.tallyGroupId;
+      const res = await fetch('https://api.tally.so/forms/' + formId + '/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionUuid: uuid(),
+          respondentUuid: uuid(),
+          responses: { [groupId]: email },
+          isCompleted: true
+        })
+      });
+      if (!res.ok) throw new Error('Submit failed');
+      const data = await res.json();
+      form.reset();
+      if (msg) {
+        msg.textContent = 'Thanks — you're on the waitlist.';
+        msg.style.color = '#86efac';
+      }
+      if (window.plausible) plausible('waitlist_signup', { props: { formId: formId } });
+      console.log('Tally submission ok', data);
+    } catch (err) {
+      console.error(err);
+      if (msg) {
+        msg.textContent = 'Something went wrong. Please try again.';
+        msg.style.color = '#fca5a5';
+      }
+    } finally {
+      button.disabled = false;
+      button.textContent = original;
+    }
+  }
+  document.querySelectorAll('.native-signup-form').forEach(function(form){
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      submitNativeForm(form);
+    });
+  });
+})();
+</script>
 </body>
 </html>
