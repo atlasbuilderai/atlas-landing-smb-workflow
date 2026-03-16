@@ -417,10 +417,10 @@
 (function(){
   function uuid(){
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
-      var r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
-      return v.toString(16);
-    });
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){ var r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8); return v.toString(16); });
+  }
+  function hostedUrl(formId, email){
+    return 'https://tally.so/r/' + formId + (email ? ('?email=' + encodeURIComponent(email)) : '');
   }
   async function submitNativeForm(form){
     const emailInput = form.querySelector('input[name="email"]');
@@ -428,37 +428,31 @@
     const msg = form.parentElement.querySelector('.form-message') || form.nextElementSibling;
     const email = (emailInput.value || '').trim();
     if (!email) return;
+    const formId = form.dataset.tallyFormId;
+    const groupId = form.dataset.tallyGroupId;
     button.disabled = true;
     const original = button.textContent;
     button.textContent = 'Submitting...';
-    if (msg) { msg.textContent = ''; msg.style.color = '#94a3b8'; }
+    if (msg) { msg.textContent = ''; msg.style.color = '#94a3b8'; msg.innerHTML=''; }
     try {
-      const formId = form.dataset.tallyFormId;
-      const groupId = form.dataset.tallyGroupId;
       const res = await fetch('https://api.tally.so/forms/' + formId + '/respond', {
         method: 'POST',
+        mode: 'cors',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionUuid: uuid(),
-          respondentUuid: uuid(),
-          responses: { [groupId]: email },
-          isCompleted: true
-        })
+        body: JSON.stringify({ sessionUuid: uuid(), respondentUuid: uuid(), responses: { [groupId]: email }, isCompleted: true })
       });
-      if (!res.ok) throw new Error('Submit failed');
-      const data = await res.json();
+      const text = await res.text();
+      let data = {};
+      try { data = text ? JSON.parse(text) : {}; } catch(e) {}
+      if (!res.ok || !data.submissionId) throw new Error('submit_http_' + res.status + '_' + text.slice(0,120));
       form.reset();
-      if (msg) {
-        msg.textContent = 'Thanks — you're on the waitlist.';
-        msg.style.color = '#86efac';
-      }
-      if (window.plausible) plausible('waitlist_signup', { props: { formId: formId } });
+      if (msg) { msg.textContent = 'Thanks — you're on the waitlist.'; msg.style.color = '#86efac'; }
       console.log('Tally submission ok', data);
     } catch (err) {
-      console.error(err);
+      console.error('Tally direct submit failed', err);
       if (msg) {
-        msg.textContent = 'Something went wrong. Please try again.';
-        msg.style.color = '#fca5a5';
+        msg.style.color = '#fbbf24';
+        msg.innerHTML = 'Direct submit was blocked in this browser. <a href="' + hostedUrl(formId, email) + '" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">Open the backup form</a>.';
       }
     } finally {
       button.disabled = false;
@@ -466,10 +460,7 @@
     }
   }
   document.querySelectorAll('.native-signup-form').forEach(function(form){
-    form.addEventListener('submit', function(e){
-      e.preventDefault();
-      submitNativeForm(form);
-    });
+    form.addEventListener('submit', function(e){ e.preventDefault(); submitNativeForm(form); });
   });
 })();
 </script>
